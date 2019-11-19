@@ -1,27 +1,27 @@
 pacman::p_load(rvest, data.table, tidyverse, rio, igraph)
 
-url =
-  "https://www.tripadvisor.fr/Attractions-g294232-Activities-oa1720-Japan.html#LOCATION_LIST"
-
-read_nodes = function(url, CSS)
-{
+url ="https://www.tripadvisor.fr/Attractions-g186234-Activities-Cornwall_England.html"
+read_nodes = function(url, CSS){
+  
   url %>% read_html() %>% html_nodes(css = CSS) %>% 
     return()
 }
 
-href = function(x)
-{
+href = function(x){
+  
   html_attr(x = x, name = "href") %>% 
     return()
 }
 
 LIST_Destinations <- function(url) {
+  
   url %>% read_nodes(CSS = "#LOCATION_LIST a") %>% 
     href() %>% 
     return()
 }
 
 Fetch_activites <- function(Page_activite) {
+  
   print(Page_activite)
   Page_activite %>%
     read_nodes(css = ".listing_title a") %>%
@@ -37,9 +37,11 @@ while(grepl(pattern = "Attract", x = url))
 {
   Liste_Destinations=append(Liste_Destinations, url)
   url =
-    url %>% read_nodes(CSS = ".sprite-pagePrev") %>% 
-    html_attr(name = "href") %>% unique() %>% 
-    str_c("https://www.tripadvisor.fr", .)
+    url %>% 
+    read_nodes(CSS = ".attractions-attraction-overview-main-Pagination__button--1up7M , .attractions-attraction-overview-main-Pagination__button--1up7M a") %>% 
+    html_attr(name = "href") %>% unique() %>% purrr::compact() %>%  
+    str_c("https://www.tripadvisor.fr", .) %>% 
+    str_subset(pattern = ".html")
   print(url)
 } 
 

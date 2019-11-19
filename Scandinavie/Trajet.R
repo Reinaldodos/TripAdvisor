@@ -27,7 +27,7 @@ test =
             lat = mean(lat, na.rm = T)) %>% 
   bind_rows(Good)
 
-pacman::p_load(RSQLite)
+pacman::p_loadR(SQLite)
 BASE = src_sqlite(path = "Scandinavie/BASE", create = F)
 adresses = 
   tbl(src = BASE, "Attractions") %>% 
