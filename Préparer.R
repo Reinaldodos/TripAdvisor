@@ -1,140 +1,59 @@
 pacman::p_load(rvest, data.table, tidyverse, rio, igraph)
+source("Fonctions.R")
 
+setwd(dir = "Cornouailles/")
 url ="https://www.tripadvisor.fr/Attractions-g186234-Activities-Cornwall_England.html"
-read_nodes = function(url, CSS){
-  
-  url %>% read_html() %>% html_nodes(css = CSS) %>% 
-    return()
-}
 
-href = function(x){
-  
-  html_attr(x = x, name = "href") %>% 
-    return()
-}
 
-LIST_Destinations <- function(url) {
-  
-  url %>% read_nodes(CSS = "#LOCATION_LIST a") %>% 
-    href() %>% 
-    return()
-}
+# Récupérer la dernière page ----------------------------------------------
+url=
+  url %>% 
+  read_nodes(CSS = 
+".attractions-attraction-overview-main-Pagination__link--2m5mV+ .attractions-attraction-overview-main-Pagination__link--2m5mV a"
+) %>% href() %>% HTMLisation()
 
-Fetch_activites <- function(Page_activite) {
-  
-  print(Page_activite)
-  Page_activite %>%
-    read_nodes(css = ".listing_title a") %>%
-    href %>%
-    str_c("tripadvisor.com", .) %>%
-    return()
-}
+url=url[length(url)]
 
 # Fetch destinations ------------------------------------------------------
 
 Liste_Destinations = list()
-while(grepl(pattern = "Attract", x = url))
-{
-  Liste_Destinations=append(Liste_Destinations, url)
-  url =
-    url %>% 
-    read_nodes(CSS = ".attractions-attraction-overview-main-Pagination__button--1up7M , .attractions-attraction-overview-main-Pagination__button--1up7M a") %>% 
-    html_attr(name = "href") %>% unique() %>% purrr::compact() %>%  
-    str_c("https://www.tripadvisor.fr", .) %>% 
-    str_subset(pattern = ".html")
-  print(url)
-} 
-
-Liste_Destinations = Liste_Destinations %>% unlist() %>%
-  grep(pattern = "Attract", value = T)
-
-Liste_Attractions =
-  Liste_Destinations %>% 
-  map(.f = LIST_Destinations) 
-
-Liste_Attractions2 =
-  Liste_Destinations %>% 
-  map(.f = ~ read_nodes(url = ., CSS = ".ap_navigator .taLnk") %>% href())
-
-output=
-  append(Liste_Attractions, Liste_Attractions2) %>% 
-  unlist() %>% unique() %>% 
-  sort() %>% 
-  setdiff(Liste_Destinations) %>% 
-  str_c("https://www.tripadvisor.fr", .)
-
-output %>% saveRDS(file = "Liste Dstinations Japon")
+To_Do = url
+while (length(To_Do) > 0) {
+  url = To_Do[1]
+  Liste_Destinations = 
+    append(as.list(Liste_Destinations), url) %>% 
+    flatten_chr()
+  To_Do =
+    FETCH_pages(url) %>%
+    append(as.list(To_Do), .) %>% flatten_chr() %>%
+    setdiff(Liste_Destinations)
+}
 
 
 
 # Fetch activites ---------------------------------------------------------
 
-pacman::p_load(rvest, data.table, tidyverse, rio)
-Destinations = "Liste Dstinations Japon" %>% read_rds() %>% 
-  grep(pattern = "Activities", value = TRUE)
-
-test = Destinations %>% sample(1)
-
-
-
-Activites = Destinations %>% sort %>% map(Fetch_activites)
+Activites = Liste_Destinations %>% sort %>% map(Fetch_activites)
 
 activites = 
   Activites %>% unlist(use.names = F) %>% 
   grep(pattern = "Attraction_Review", value = T) %>% 
   sort
 
-saveRDS(object = activites, file = "Liste activites Japon")
+saveRDS(object = activites, file = "Liste activites.rds")
 
 
 # Fetch reviews -----------------------------------------------------------
-
-activites =
-  "Liste activites Japon" %>% read_rds() %>%
-  str_c("https://www.", .)
-
-Review_attraction <- function(attraction) {
-  # print(attraction)
-  attraction_html =  attraction %>% read_html()
-  Badge = html_nodes(x = attraction_html, css = ".badgeText") %>% html_text()
-  print(Badge)
-  if (length(Badge) > 0)
-  {
-    Adresse =
-      html_nodes(x = attraction_html,
-                 css = ".ui_link .detail") %>%
-      html_text()
-    
-    attraction_html = attraction_html %>% html_nodes(css = ".attractionsHeader")
-    list(
-      Badge = Badge,
-      Titre =
-        html_nodes(x = attraction_html, css = "#HEADING") %>%
-        html_text(),
-      Themes =
-        html_nodes(x = attraction_html,
-                   css = ".detail a") %>%
-        html_text(),
-      Reviews =
-        html_nodes(x = attraction_html,
-                   css = ".reviewCount") %>%
-        html_text(),
-      Adresse = Adresse
-    ) %>%
-      return()
-  }
-}
-
 output =
-  activites %>%
+  activites %>%sort %>% str_c("http://www.",.) %>%  
   map(Review_attraction)
 
 output = output %>% unique()
-output %>% saveRDS(file = "Table activites Japon")
+output %>% saveRDS(file = "Table activites.rds")
 
 # Mettre en forme les données ---------------------------------------------
 TABLE =
-  "Table activites Japon" %>% read_rds() %>% 
+  "Table activites.rds" %>% read_rds() %>% 
   map(.f = ~ lapply(., function(x)
     if (identical(x, character(0)))
       NA_character_
@@ -156,11 +75,11 @@ Attractions_Themes =
 Themes = Attractions_Themes$Themes %>% unique()
 
 # Filtrer les themes ------------------------------------------------------
-Themes %>% write.table(file = "Themes Japon.csv",
+Themes %>% write.table(file = "Themes.csv",
                        quote = F,
                        row.names = F)
 
-Themes_a_bannir = "Themes Japon.csv" %>% import(fill = T,
+Themes_a_bannir = "Themes.csv" %>% import(fill = T,
                                                 sep = "|",
                                                 header = F) %>% .$V1
 Attractions=
@@ -177,7 +96,9 @@ Themes = Attractions_Themes$Themes %>% unique()
 
 
 # create SQLite -----------------------------------------------------------
-BASE = src_sqlite(path = "JAPON", create = TRUE)
+pacman::p_load(RSQLite)
+BASE = src_sqlite(path = "BASE", create = TRUE)
+
 copy_to(
   dest = BASE,
   df = Attractions,
